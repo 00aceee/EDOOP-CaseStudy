@@ -49,17 +49,17 @@ class SignUpWindow(tk.Toplevel):
         tk.Label(card_frame, text="Create Account", font=("Arial", 16, "bold"),
                  fg=ACCENT_COLOR, bg=CARD_COLOR).pack(pady=15)
 
-        def add_input(label_text, show=""):
+        def add_input(label_text, show="*"):
             frame = tk.Frame(card_frame, bg=CARD_COLOR)
             frame.pack(pady=8, fill="x", padx=40)
             tk.Label(frame, text=label_text, fg=ACCENT_COLOR, bg=CARD_COLOR, font=("Arial", 11, "bold")).pack(anchor="w")
             entry = tk.Entry(frame, font=("Arial", 12), fg=FG_COLOR, bg="#333",
-                 insertbackground="white", relief="flat", width=40)
+                 insertbackground="white", relief="flat", width=40, show=show)
             entry.pack(fill="x", ipady=6, pady=4)
             return entry
 
-        self.entry_fullname = add_input("Full Name")
-        self.entry_user = add_input("Username")
+        self.entry_fullname = add_input("Full Name", show="")
+        self.entry_user = add_input("Username", show="")
 
         # Email + SEND OTP button on same line but aligned nicely
         email_frame = tk.Frame(card_frame, bg=CARD_COLOR)
@@ -305,3 +305,5 @@ class SignUpWindow(tk.Toplevel):
         x = (ws // 2) - (w // 2)
         y = (hs // 2) - (h // 2)
         self.geometry(f'{w}x{h}+{x}+{y}')
+
+

@@ -306,39 +306,55 @@ class AdminWindow(tk.Toplevel):
     def show_appointments_panel(self):
         self.clear_content()
         tk.Label(self.content_frame, text="Appointments", bg="#111", fg="white",
-                  font=("Arial", 16, "bold")).pack(pady=10)
+                font=("Arial", 16, "bold")).pack(pady=10)
 
-        columns = ("fullname", "service", "appointment_date", "time", "remarks", "status")
+        # ✅ Include ID for proper linking
+        columns = ("id", "fullname", "service", "appointment_date", "time", "remarks", "status")
         tree = ttk.Treeview(self.content_frame, columns=columns, show="headings")
 
         for col in columns:
             tree.heading(col, text=col.title())
-            tree.column(col, anchor="center", width=120)
+            width = 120 if col not in ("remarks", "fullname", "service") else 150
+            tree.column(col, anchor="center", width=width)
+
+        # ✅ Hide ID visually but keep it accessible
+        tree.column("id", width=0, stretch=False)
+
         tree.pack(expand=True, fill="both", padx=20, pady=20)
 
+        # ✅ Load appointments from database
         conn = self.get_db_connection()
         if conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT fullname, service, appointment_date, time, remarks, status FROM tbl_appointment")
+            cursor.execute("""
+                SELECT id, fullname, service, appointment_date, time, remarks, status 
+                FROM tbl_appointment
+            """)
             for row in cursor.fetchall():
                 tree.insert("", "end", values=row)
             cursor.close()
             conn.close()
 
+        # ✅ Buttons for actions
         btn_frame = tk.Frame(self.content_frame, bg="#111")
         btn_frame.pack(fill="x", pady=10)
 
-        btn_add = tk.Button(btn_frame, text="Add Appointment", command=lambda: self.add_appointment(tree))
-        btn_add.pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Add Appointment", 
+                command=lambda: self.add_appointment(tree), 
+                bg="#4CAF50", fg="white").pack(side="left", padx=5)
 
-        btn_update = tk.Button(btn_frame, text="Update Appointment", command=lambda: self.update_appointment(tree))
-        btn_update.pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Update Appointment", 
+                command=lambda: self.update_appointment(tree), 
+                bg="#555", fg="white").pack(side="left", padx=5)
 
-        btn_approve = tk.Button(btn_frame, text="Approve", command=lambda: self.change_approval(tree, status="Approved"))
-        btn_approve.pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Approve", 
+                command=lambda: self.change_approval(tree, status="Approved"), 
+                bg="#0078D7", fg="white").pack(side="left", padx=5)
 
-        btn_deny = tk.Button(btn_frame, text="Deny", command=lambda: self.change_approval(tree, status="Denied"))
-        btn_deny.pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Deny", 
+                command=lambda: self.change_approval(tree, status="Denied"), 
+                bg="#F44336", fg="white").pack(side="left", padx=5)
+
 
     def add_appointment(self, tree):
         top = tk.Toplevel(self)
@@ -445,30 +461,60 @@ class AdminWindow(tk.Toplevel):
         if not selected:
             messagebox.showwarning("Select", "Select an appointment first.")
             return
+
         values = tree.item(selected[0], "values")
-        fullname, service, date, time_val = values[0], values[1], values[2], values[3]
+        appointment_id = values[0]  # ✅ Now correctly gets ID
+        fullname, service, date, time_val = values[1], values[2], values[3], values[4]
 
         conn = self.get_db_connection()
         if conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("SELECT email FROM tbl_users WHERE fullname = %s", (fullname,))
+                # ✅ Get user_id & fullname from appointment
+                cursor.execute("SELECT user_id, fullname FROM tbl_appointment WHERE id = %s", (appointment_id,))
                 result = cursor.fetchone()
 
                 if not result:
-                    messagebox.showerror("Error", "No email found for this user.")
+                    messagebox.showerror("Error", "Appointment not found.")
                     return
 
-                user_email = result[0]
+                user_id, appointment_fullname = result
 
-                cursor.execute("UPDATE tbl_appointment SET status = %s WHERE fullname = %s AND appointment_date = %s AND time = %s",
-                                 (status, fullname, date, time_val))
+                # ✅ Handle missing user_id (fallback to name search)
+                if user_id is None:
+                    cursor.execute("SELECT id, email, fullname FROM tbl_users WHERE fullname = %s", (appointment_fullname,))
+                    user_result = cursor.fetchone()
+
+                    if not user_result:
+                        messagebox.showerror("Error", "No linked user or matching name found.")
+                        return
+
+                    user_id, user_email, fullname = user_result
+
+                    # Permanently link the appointment to this user
+                    cursor.execute("UPDATE tbl_appointment SET user_id = %s WHERE id = %s", (user_id, appointment_id))
+                    conn.commit()
+                else:
+                    # ✅ Get user email using the existing user_id
+                    cursor.execute("SELECT email, fullname FROM tbl_users WHERE id = %s", (user_id,))
+                    user_result = cursor.fetchone()
+
+                    if not user_result:
+                        messagebox.showerror("Error", "User not found in tbl_users.")
+                        return
+
+                    user_email, fullname = user_result
+
+                # ✅ Update appointment status
+                cursor.execute("UPDATE tbl_appointment SET status = %s WHERE id = %s", (status, appointment_id))
                 conn.commit()
 
-                messagebox.showinfo("Success", f"Appointment {status}.")
+                messagebox.showinfo("Success", f"Appointment {status} successfully!")
 
+                # ✅ Send notification email
                 self.send_decision_email(user_email, fullname, service, date, time_val, status)
 
+                # ✅ Refresh table
                 self.show_appointments_panel()
 
             except mysql.connector.Error as err:
