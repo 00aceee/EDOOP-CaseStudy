@@ -1,3 +1,4 @@
+#login_window.py
 import tkinter as tk
 from tkinter import messagebox
 import mysql.connector
@@ -158,10 +159,13 @@ class LoginWindow(tk.Tk):
     def open_admin_window(self, username, role):
         self.withdraw() 
         is_admin = (role == 'Admin')  
-        admin_win = AdminWindow(self, username, is_admin=is_admin)  
+        admin_win = AdminWindow(self, username, is_admin)  
         admin_win.grab_set()
 
     def open_main_window(self, username):
-        self.withdraw()
-        main_win = MainWindow(self, username)
+        main_win = MainWindow(self, username, is_admin=False)
+        main_win.lift()
+        main_win.focus_force()
         main_win.grab_set()
+        self.after(10, self.withdraw)
+
