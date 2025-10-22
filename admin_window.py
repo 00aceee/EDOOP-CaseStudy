@@ -475,65 +475,396 @@ class AdminWindow(tk.Toplevel):
     def show_feedback_panel(self):
         self.clear_content()
 
-        tk.Label(self.content_frame, text="User Feedback", bg="#212121", fg="#FFFFFF",
+        # Main container with scrollable canvas
+        main_container = tk.Frame(self.content_frame, bg="#212121")
+        main_container.pack(fill="both", expand=True)
+
+        tk.Label(main_container, text="User Feedback Management", bg="#212121", fg="#FFFFFF",
                 font=("Arial", 18, "bold")).pack(pady=(20, 10))
 
-        columns = ("id", "username", "stars", "message", "reply")
-        tree = ttk.Treeview(self.content_frame, columns=columns, show="headings")
+        # Control panel frame
+        control_frame = tk.Frame(main_container, bg="#212121")
+        control_frame.pack(fill="x", padx=20, pady=10)
 
-        for col in columns:
-            tree.heading(col, text=col.title())
-            tree.column(col, anchor="center", width=120 if col != "message" else 250)
-        tree.column("id", width=0, stretch=False)
-        tree.pack(expand=True, fill="both", padx=20, pady=10)
+        # Filter by star rating
+        tk.Label(control_frame, text="Filter by Stars:", bg="#212121", fg="white", 
+                font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        
+        star_filter = tk.StringVar(value="All")
+        star_dropdown = ttk.Combobox(control_frame, textvariable=star_filter, 
+                                    values=["All", "5 Stars", "4 Stars", "3 Stars", "2 Stars", "1 Star"],
+                                    state="readonly", width=12)
+        star_dropdown.pack(side="left", padx=5)
 
-        # Load feedback
-        conn = self.get_db_connection()
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, username, stars, message, COALESCE(reply, '') FROM tbl_feedback ORDER BY date_submitted DESC")
-            for row in cursor.fetchall():
-                tree.insert("", "end", values=row)
-            cursor.close()
-            conn.close()
+        # Sort options
+        tk.Label(control_frame, text="Sort by:", bg="#212121", fg="white", 
+                font=("Arial", 10)).pack(side="left", padx=(20, 5))
+        
+        sort_option = tk.StringVar(value="Newest First")
+        sort_dropdown = ttk.Combobox(control_frame, textvariable=sort_option,
+                                    values=["Newest First", "Oldest First", "Highest Rating", "Lowest Rating"],
+                                    state="readonly", width=15)
+        sort_dropdown.pack(side="left", padx=5)
 
-        def reply_to_feedback():
-            selected = tree.selection()
-            if not selected:
-                messagebox.showwarning("Select", "Select a feedback entry first.")
+        # Search functionality
+        tk.Label(control_frame, text="Search:", bg="#212121", fg="white", 
+                font=("Arial", 10)).pack(side="left", padx=(20, 5))
+        
+        search_var = tk.StringVar()
+        search_entry = tk.Entry(control_frame, textvariable=search_var, width=20, bg="#333", 
+                            fg="white", insertbackground="white")
+        search_entry.pack(side="left", padx=5)
+
+        # Scrollable feedback container
+        canvas = tk.Canvas(main_container, bg="#212121", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg="#212121")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=20, pady=10)
+        scrollbar.pack(side="right", fill="y")
+
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        def load_feedback():
+            # Clear existing feedback cards
+            for widget in scrollable_frame.winfo_children():
+                widget.destroy()
+
+            conn = self.get_db_connection()
+            if not conn:
                 return
-            feedback_id = tree.item(selected[0], "values")[0]
-            username = tree.item(selected[0], "values")[1]
 
+            cursor = conn.cursor()
+            
+            # Build query based on filters
+            query = """
+                SELECT f.id, f.username, f.stars, f.message, COALESCE(f.reply, ''), 
+                    DATE_FORMAT(f.date_submitted, '%Y-%m-%d %H:%i:%s'),
+                    f.resolved, u.email
+                FROM tbl_feedback f
+                LEFT JOIN tbl_users u ON f.username = u.username
+            """
+            
+            conditions = []
+            params = []
+            
+            # Star filter
+            star_val = star_filter.get()
+            if star_val != "All":
+                star_num = int(star_val.split()[0])
+                conditions.append("f.stars = %s")
+                params.append(star_num)
+            
+            # Search filter
+            search_text = search_var.get().strip()
+            if search_text:
+                conditions.append("(f.username LIKE %s OR f.message LIKE %s)")
+                params.extend([f"%{search_text}%", f"%{search_text}%"])
+            
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            
+            # Sort order
+            sort_val = sort_option.get()
+            if sort_val == "Newest First":
+                query += " ORDER BY f.date_submitted DESC"
+            elif sort_val == "Oldest First":
+                query += " ORDER BY f.date_submitted ASC"
+            elif sort_val == "Highest Rating":
+                query += " ORDER BY f.stars DESC, f.date_submitted DESC"
+            elif sort_val == "Lowest Rating":
+                query += " ORDER BY f.stars ASC, f.date_submitted DESC"
+            
+            try:
+                cursor.execute(query, params)
+                feedbacks = cursor.fetchall()
+                
+                if not feedbacks:
+                    tk.Label(scrollable_frame, text="No feedback found matching your filters.", 
+                            bg="#212121", fg="#aaa", font=("Arial", 12)).pack(pady=50)
+                else:
+                    for feedback in feedbacks:
+                        create_feedback_card(feedback)
+                        
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load feedback: {e}")
+            finally:
+                cursor.close()
+                conn.close()
+
+        def create_feedback_card(feedback):
+            feedback_id, username, stars, message, reply, date, resolved, email = feedback
+            
+            # Card frame
+            card = tk.Frame(scrollable_frame, bg="#333", bd=2, relief="solid", padx=15, pady=12)
+            card.pack(pady=10, fill="x", padx=10)
+            
+            # Header frame (username, email, date, resolved status)
+            header_frame = tk.Frame(card, bg="#333")
+            header_frame.pack(fill="x", pady=(0, 5))
+            
+            tk.Label(header_frame, text=username, fg="white", bg="#333", 
+                    font=("Arial", 12, "bold")).pack(side="left")
+            
+            if email:
+                tk.Label(header_frame, text=f"({email})", fg="#aaa", bg="#333", 
+                        font=("Arial", 9)).pack(side="left", padx=(5, 0))
+            
+            tk.Label(header_frame, text=date, fg="#888", bg="#333", 
+                    font=("Arial", 9)).pack(side="right")
+            
+            # Resolved badge
+            if resolved:
+                resolved_badge = tk.Label(header_frame, text="✓ RESOLVED", fg="#28A745", bg="#333", 
+                                        font=("Arial", 9, "bold"))
+                resolved_badge.pack(side="right", padx=(0, 10))
+            
+            # Star rating
+            star_frame = tk.Frame(card, bg="#333")
+            star_frame.pack(fill="x", pady=3)
+            star_text = "★" * stars + "☆" * (5 - stars)
+            tk.Label(star_frame, text=star_text, fg="gold", bg="#333", 
+                    font=("Arial", 16)).pack(side="left")
+            
+            # Message
+            tk.Label(card, text=message, fg="white", bg="#333", font=("Arial", 11),
+                    wraplength=650, justify="left", anchor="w").pack(fill="x", pady=8)
+            
+            # Admin reply section (if exists)
+            if reply:
+                reply_frame = tk.Frame(card, bg="#1a1a1a", bd=1, relief="solid", padx=10, pady=8)
+                reply_frame.pack(fill="x", pady=(5, 0))
+                
+                tk.Label(reply_frame, text="Admin Response:", fg="#00BFFF", bg="#1a1a1a",
+                        font=("Arial", 10, "bold")).pack(anchor="w")
+                tk.Label(reply_frame, text=reply, fg="white", bg="#1a1a1a",
+                        font=("Arial", 10), wraplength=630, justify="left", 
+                        anchor="w").pack(anchor="w", pady=(3, 0))
+            
+            # Action buttons
+            btn_frame = tk.Frame(card, bg="#333")
+            btn_frame.pack(fill="x", pady=(10, 0))
+            
+            # Reply button
+            reply_btn = tk.Button(btn_frame, text="💬 Reply" if not reply else "✏️ Edit Reply",
+                                command=lambda: reply_to_feedback(feedback_id, username, message, 
+                                                                stars, reply, email),
+                                bg="#007ACC", fg="white", relief="flat", 
+                                activebackground="#005bb5", font=("Arial", 9))
+            reply_btn.pack(side="left", padx=(0, 5))
+            
+            # Mark as resolved/unresolved button
+            resolve_text = "❌ Mark Unresolved" if resolved else "✅ Mark Resolved"
+            resolve_btn = tk.Button(btn_frame, text=resolve_text,
+                                command=lambda: toggle_resolved(feedback_id, not resolved),
+                                bg="#28A745" if not resolved else "#FFC107", 
+                                fg="white", relief="flat",
+                                activebackground="#1e7e34" if not resolved else "#cc9a00",
+                                font=("Arial", 9))
+            resolve_btn.pack(side="left", padx=5)
+            
+            # Delete button
+            delete_btn = tk.Button(btn_frame, text="🗑️ Delete",
+                                command=lambda: delete_feedback(feedback_id),
+                                bg="#F44336", fg="white", relief="flat",
+                                activebackground="#dc3545", font=("Arial", 9))
+            delete_btn.pack(side="left", padx=5)
+
+        def reply_to_feedback(feedback_id, username, user_message, stars, existing_reply, email):
             top = tk.Toplevel(self)
             top.title(f"Reply to {username}'s Feedback")
-            top.geometry("400x300")
+            top.geometry("500x550")
             top.configure(bg="#f0f0f0")
+            top.transient(self)
+            top.grab_set()
 
-            tk.Label(top, text=f"Reply to {username}:", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(pady=10)
-            reply_box = tk.Text(top, width=40, height=8, wrap="word")
-            reply_box.pack(pady=10)
+            # Show user's feedback
+            info_frame = tk.Frame(top, bg="#e0e0e0", padx=15, pady=15)
+            info_frame.pack(fill="x", padx=10, pady=10)
+            
+            tk.Label(info_frame, text=f"User: {username}", font=("Arial", 11, "bold"), 
+                    bg="#e0e0e0").pack(anchor="w")
+            
+            if email:
+                tk.Label(info_frame, text=f"Email: {email}", font=("Arial", 9), 
+                        fg="#555", bg="#e0e0e0").pack(anchor="w")
+            
+            star_text = "★" * stars + "☆" * (5 - stars)
+            tk.Label(info_frame, text=star_text, fg="gold", bg="#e0e0e0", 
+                    font=("Arial", 14)).pack(anchor="w", pady=3)
+            
+            tk.Label(info_frame, text="User's Feedback:", font=("Arial", 10, "bold"), 
+                    bg="#e0e0e0").pack(anchor="w", pady=(5, 2))
+            tk.Label(info_frame, text=user_message, font=("Arial", 10), bg="#e0e0e0",
+                    wraplength=450, justify="left").pack(anchor="w")
+
+            # Reply section
+            tk.Label(top, text="Your Reply:", font=("Arial", 12, "bold"), 
+                    bg="#f0f0f0").pack(pady=(10, 5), padx=15, anchor="w")
+            
+            reply_box = tk.Text(top, width=55, height=10, wrap="word", bg="white", 
+                            font=("Arial", 10))
+            reply_box.pack(pady=5, padx=15)
+            
+            if existing_reply:
+                reply_box.insert("1.0", existing_reply)
+
+            # Email checkbox
+            send_email_var = tk.BooleanVar(value=True if email else False)
+            email_check = tk.Checkbutton(top, text="Send reply via email", 
+                                        variable=send_email_var, bg="#f0f0f0",
+                                        font=("Arial", 10))
+            email_check.pack(pady=5)
+            
+            if not email:
+                email_check.config(state="disabled")
+                tk.Label(top, text="(No email associated with this user)", 
+                        fg="red", bg="#f0f0f0", font=("Arial", 8)).pack()
 
             def send_reply():
                 reply_text = reply_box.get("1.0", tk.END).strip()
                 if not reply_text:
                     messagebox.showwarning("Empty", "Reply cannot be empty.", parent=top)
                     return
+                
                 conn = self.get_db_connection()
+                if not conn:
+                    return
+                    
                 cursor = conn.cursor()
-                cursor.execute("UPDATE tbl_feedback SET reply=%s WHERE id=%s", (reply_text, feedback_id))
-                conn.commit()
-                cursor.close()
-                conn.close()
-                messagebox.showinfo("Success", "Reply sent!", parent=top)
-                top.destroy()
-                self.show_feedback_panel()
+                try:
+                    cursor.execute("UPDATE tbl_feedback SET reply=%s WHERE id=%s", 
+                                (reply_text, feedback_id))
+                    conn.commit()
+                    
+                    # Send email if checkbox is checked and email exists
+                    if send_email_var.get() and email:
+                        self.send_feedback_reply_email(email, username, user_message, 
+                                                    stars, reply_text)
+                    
+                    messagebox.showinfo("Success", "Reply sent successfully!", parent=top)
+                    top.destroy()
+                    self.show_feedback_panel()
+                    
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to send reply: {e}", parent=top)
+                finally:
+                    cursor.close()
+                    conn.close()
 
             tk.Button(top, text="Send Reply", command=send_reply,
-                    bg="#007ACC", fg="white", relief="flat").pack(pady=10)
+                    bg="#007ACC", fg="white", relief="flat", 
+                    font=("Arial", 11, "bold"), pady=8).pack(pady=15, padx=15, fill="x")
 
-        tk.Button(self.content_frame, text="💬 Reply to Feedback", command=reply_to_feedback,
-                bg="#007ACC", fg="white", relief="flat").pack(pady=(10, 20))
+        def toggle_resolved(feedback_id, new_status):
+            conn = self.get_db_connection()
+            if not conn:
+                return
+                
+            cursor = conn.cursor()
+            try:
+                cursor.execute("UPDATE tbl_feedback SET resolved=%s WHERE id=%s", 
+                            (new_status, feedback_id))
+                conn.commit()
+                load_feedback()  # Refresh the display
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update status: {e}")
+            finally:
+                cursor.close()
+                conn.close()
+
+        def delete_feedback(feedback_id):
+            if not messagebox.askyesno("Confirm Delete", 
+                                    "Are you sure you want to delete this feedback?"):
+                return
+            
+            conn = self.get_db_connection()
+            if not conn:
+                return
+                
+            cursor = conn.cursor()
+            try:
+                cursor.execute("DELETE FROM tbl_feedback WHERE id=%s", (feedback_id,))
+                conn.commit()
+                messagebox.showinfo("Success", "Feedback deleted successfully!")
+                load_feedback()  # Refresh the display
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete feedback: {e}")
+            finally:
+                cursor.close()
+                conn.close()
+
+        # Apply filters button
+        apply_btn = tk.Button(control_frame, text="🔍 Apply Filters", 
+                            command=load_feedback, bg="#007ACC", fg="white", 
+                            relief="flat", font=("Arial", 9))
+        apply_btn.pack(side="left", padx=20)
+
+        # Refresh button
+        refresh_btn = tk.Button(control_frame, text="🔄 Refresh", 
+                            command=lambda: [star_filter.set("All"), 
+                                            sort_option.set("Newest First"),
+                                            search_var.set(""),
+                                            load_feedback()],
+                            bg="#28A745", fg="white", relief="flat", 
+                            font=("Arial", 9))
+        refresh_btn.pack(side="left", padx=5)
+
+        # Initial load
+        load_feedback()
+
+    def send_feedback_reply_email(self, email, username, user_message, stars, admin_reply):
+        """Send email with user's feedback and admin's reply"""
+        subject = f"Response to Your Feedback - Marmu Barber & Tattoo Shop"
+        
+        star_text = "★" * stars + "☆" * (5 - stars)
+        
+        text_body = f"""Hello {username},
+
+    Thank you for your feedback! We appreciate you taking the time to share your thoughts with us.
+
+    Your Feedback ({star_text}):
+    "{user_message}"
+
+    Our Response:
+    {admin_reply}
+
+    We value your opinion and hope to serve you better in the future.
+
+    Best regards,
+    Marmu Barber & Tattoo Shop Team
+    """
+
+        try:
+            msg = MIMEMultipart('alternative')
+            msg['From'] = YOUR_GMAIL
+            msg['To'] = email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(text_body, 'plain'))
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(YOUR_GMAIL, YOUR_APP_PASSWORD)
+            server.sendmail(YOUR_GMAIL, email, msg.as_string())
+            print(f"✅ Feedback reply email sent to {email}")
+        except Exception as e:
+            print(f"❌ Failed to send feedback reply email: {e}")
+            messagebox.showwarning("Email Error", 
+                                f"Reply saved but email failed to send: {e}")
+        finally:
+            if 'server' in locals() and server:
+                server.quit()
 
     def go_to_main_window(self):
         from main_window import MainWindow

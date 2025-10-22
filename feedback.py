@@ -33,7 +33,6 @@ class Feedback(tk.Toplevel):
         # Enable mouse wheel scrolling
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
-        # Now add all content to scrollable_frame instead of self
         
         # 🌟 Title
         tk.Label(self.scrollable_frame, text="Rate Our Service", fg="white", bg="#222",
@@ -130,7 +129,7 @@ class Feedback(tk.Toplevel):
             if conn:
                 conn.close()
 
-    # 🧾 Load Feedback as Cards (Shopee-style)
+    # 🧾 Load Feedback as Cards 
     def load_feedback(self):
         for widget in self.feedback_container.winfo_children():
             widget.destroy()
@@ -158,9 +157,8 @@ class Feedback(tk.Toplevel):
         # 🪧 Card frame with fixed width to match text entry
         card = tk.Frame(self.feedback_container, bg="#333", bd=1, relief="solid", padx=15, pady=10)
         card.pack(pady=8)
-        
-        # Set fixed width to match the Text widget
-        card_width = 485  # Matches 60-char Text widget
+    
+        card_width = 485 
 
         # 🧾 Username + Date
         tk.Label(card, text=username, fg="white", bg="#333", font=("Arial", 11, "bold"), width=60, anchor="w").pack(fill="x")
@@ -179,7 +177,7 @@ class Feedback(tk.Toplevel):
         if reply.strip():
             reply_frame = tk.Frame(card, bg="#222", padx=10, pady=6)
             reply_frame.pack(fill="x", pady=(5, 0))
-            tk.Label(reply_frame, text="Seller Response:", fg="#00BFFF", bg="#222",
+            tk.Label(reply_frame, text="Admin Response:", fg="#00BFFF", bg="#222",
                     font=("Arial", 10, "bold"), anchor="w").pack(fill="x")
             tk.Label(reply_frame, text=reply, fg="white", bg="#222",
                     font=("Arial", 10), wraplength=420, justify="left", anchor="w").pack(fill="x")
