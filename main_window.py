@@ -54,6 +54,7 @@ class MainWindow(tk.Toplevel):
         
         self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
         self.canvas.bind('<Configure>', self.on_canvas_resize)
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
         
         self.scrollable_frame.grid_columnconfigure(0, weight=1) 
         
@@ -304,6 +305,10 @@ class MainWindow(tk.Toplevel):
                 self.logout
             )
 
+    def _on_mousewheel(self, event):
+        """Enable mouse wheel scrolling"""
+        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
     def back_to_admin(self):
         from admin_window import AdminWindow
         self.withdraw() 
