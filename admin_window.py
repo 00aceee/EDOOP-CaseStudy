@@ -61,6 +61,9 @@ class AdminWindow(tk.Toplevel):
 
         ttk.Button(menu_frame, text="👤 Manage Users", style="Sidebar.TButton",
                      command=self.show_users_panel).pack(fill="x", pady=(5, 2), padx=10)
+        
+        ttk.Button(menu_frame, text="⭐ View Feedback", style="Sidebar.TButton",
+           command=self.show_feedback_panel).pack(fill="x", pady=(5, 2), padx=10)
 
         ttk.Button(menu_frame, text="🏠 Go to Main Window", style="Sidebar.TButton",
                      command=self.go_to_main_window).pack(fill="x", pady=(5, 2), padx=10)
@@ -468,6 +471,69 @@ class AdminWindow(tk.Toplevel):
                 cursor.close()
             if conn:
                 conn.close()
+
+    def show_feedback_panel(self):
+        self.clear_content()
+
+        tk.Label(self.content_frame, text="User Feedback", bg="#212121", fg="#FFFFFF",
+                font=("Arial", 18, "bold")).pack(pady=(20, 10))
+
+        columns = ("id", "username", "stars", "message", "reply")
+        tree = ttk.Treeview(self.content_frame, columns=columns, show="headings")
+
+        for col in columns:
+            tree.heading(col, text=col.title())
+            tree.column(col, anchor="center", width=120 if col != "message" else 250)
+        tree.column("id", width=0, stretch=False)
+        tree.pack(expand=True, fill="both", padx=20, pady=10)
+
+        # Load feedback
+        conn = self.get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, username, stars, message, COALESCE(reply, '') FROM tbl_feedback ORDER BY date_submitted DESC")
+            for row in cursor.fetchall():
+                tree.insert("", "end", values=row)
+            cursor.close()
+            conn.close()
+
+        def reply_to_feedback():
+            selected = tree.selection()
+            if not selected:
+                messagebox.showwarning("Select", "Select a feedback entry first.")
+                return
+            feedback_id = tree.item(selected[0], "values")[0]
+            username = tree.item(selected[0], "values")[1]
+
+            top = tk.Toplevel(self)
+            top.title(f"Reply to {username}'s Feedback")
+            top.geometry("400x300")
+            top.configure(bg="#f0f0f0")
+
+            tk.Label(top, text=f"Reply to {username}:", font=("Arial", 12, "bold"), bg="#f0f0f0").pack(pady=10)
+            reply_box = tk.Text(top, width=40, height=8, wrap="word")
+            reply_box.pack(pady=10)
+
+            def send_reply():
+                reply_text = reply_box.get("1.0", tk.END).strip()
+                if not reply_text:
+                    messagebox.showwarning("Empty", "Reply cannot be empty.", parent=top)
+                    return
+                conn = self.get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE tbl_feedback SET reply=%s WHERE id=%s", (reply_text, feedback_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                messagebox.showinfo("Success", "Reply sent!", parent=top)
+                top.destroy()
+                self.show_feedback_panel()
+
+            tk.Button(top, text="Send Reply", command=send_reply,
+                    bg="#007ACC", fg="white", relief="flat").pack(pady=10)
+
+        tk.Button(self.content_frame, text="💬 Reply to Feedback", command=reply_to_feedback,
+                bg="#007ACC", fg="white", relief="flat").pack(pady=(10, 20))
 
     def go_to_main_window(self):
         from main_window import MainWindow

@@ -6,7 +6,6 @@ from utils import load_image
 from book_now import BookNowPage
 from tattoo_designs import TattooDesigns
 from haircut_styles import HaircutStyles
-from feedback import Feedback
 
 class MainWindow(tk.Toplevel):
     open_sub_windows = [] 
@@ -327,9 +326,11 @@ class MainWindow(tk.Toplevel):
         self.open_sub_windows.append(sub_win)
 
     def open_feedback(self):
+        from feedback import Feedback
         self.withdraw()
-        sub_win = Feedback(self, self.username, is_admin=self.is_admin, mode=self.current_mode)
-        self.open_sub_windows.append(sub_win)
+        feed_win = Feedback(self, self.username, is_admin=self.is_admin, mode=self.current_mode)
+        self.open_sub_windows.append(feed_win)
+        feed_win.grab_set()
 
     def open_book_now(self):
         self.withdraw()
