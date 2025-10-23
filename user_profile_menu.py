@@ -148,10 +148,23 @@ class UserProfileMenu(tk.Frame):
     # ===== Event Handling =====
     def bind_outside_click(self):
         """Close menu when clicking outside."""
-        def on_click(event):
-            if not self.winfo_containing(event.x_root, event.y_root):
-                self.close_menu()
-        self.bind_all("<Button-1>", on_click)
+        def bind_outside_click(self):
+            """Close user profile menu when clicking outside, safely."""
+            def on_click(event):
+                try:
+                    widget = self.winfo_containing(event.x_root, event.y_root)
+                except (KeyError, tk.TclError):
+                    # Ignore destroyed popdown windows (e.g. Combobox dropdowns)
+                    return
+
+                # Close the menu only if click is outside it
+                if hasattr(self, "menu_frame") and self.menu_frame.winfo_ismapped():
+                    if not widget or not str(widget).startswith(str(self.menu_frame)):
+                        self.close_menu()
+
+            # Bind globally, but safely
+            self.bind_all("<Button-1>", on_click)
+
 
     def show_password_fields(self):
         if self.password_frame.winfo_ismapped():
@@ -224,3 +237,4 @@ class UserProfileMenu(tk.Frame):
     def close_menu(self):
         self.unbind_all("<Button-1>")
         self.destroy()
+        

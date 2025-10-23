@@ -28,16 +28,16 @@ class BookNowPage(tk.Toplevel):
             messagebox.showwarning("User Name Missing", f"Could not retrieve full name for '{self.username}'. Using '{self.fullname}'.")
 
         self.title("Book an Appointment")
-        self.geometry("600x500")
+        self.geometry("700x600")
         self.after(0, self.center_window)
         self.configure(bg=self.bg) 
         self.resizable(False, False)
 
         # CHANGE: Set back_btn background to self.bg for transparency
-        back_btn = tk.Button(self, text="← Back", font=("Arial", 12),
-                             bg=self.bg, fg=self.fg, relief="flat", padx=10, pady=5,
+        home_btn = tk.Button(self, text="🏠", font=("Arial", 24),
+                             bg=self.bg, fg=self.fg, relief="flat", padx=10, pady=0,
                              command=self.go_back, activebackground=self.bg, activeforeground=ACCENT_COLOR)
-        back_btn.place(x=10, y=10)
+        home_btn.place(x=10, y=0)
         
         title = tk.Label(self, text="Book Your Appointment", font=("Arial", 20, "bold"),
                          fg=self.fg, bg=self.bg)
@@ -90,14 +90,13 @@ class BookNowPage(tk.Toplevel):
         self.remarks_text.grid(row=4, column=1, pady=10, padx=10, sticky="we")
         self.remarks_text.bind('<Return>', lambda event: (self.confirm_booking(), "break")[1])
         
-        submit_btn = tk.Button(self, text="Confirm Booking", font=("Arial", 14, "bold"),
+        self.submit_btn = tk.Button(self, text="Confirm Booking", font=("Arial", 14, "bold"),
                                bg=ACCENT_COLOR, fg="black", relief="flat", padx=15, pady=10,
                                command=self.confirm_booking, activebackground=ACCENT_COLOR_DARK)
-        submit_btn.pack(pady=30)
+        self.submit_btn.pack(pady=30)
         self.bind('<Return>', lambda event: self.confirm_booking())
         
         self.apply_ttk_style()
-
 
     def apply_theme_vars(self):
         if self.mode == "light":
@@ -181,8 +180,8 @@ class BookNowPage(tk.Toplevel):
         return user_id
 
     def center_window(self):
-        width = 600
-        height = 500
+        width = 700
+        height = 600
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
 
@@ -287,27 +286,38 @@ class BookNowPage(tk.Toplevel):
         self.withdraw()
         main_win = MainWindow(self.parent, username=self.username, is_admin=self.is_admin)
         main_win.grab_set()
-    
+
     def confirm_booking(self):
+        # Disable the submit button immediately to prevent spam
+        self.submit_btn.config(state="disabled", text="Processing...", bg="#888")
+        self.update_idletasks()  # Force UI update
+        
         name = self.name_entry.get().strip()
         service = self.service_combo.get().strip()
         date_val = self.date_entry.get().strip()
         time_val = self.time_combo.get().strip()
         remarks = self.remarks_text.get("1.0", tk.END).strip()
 
+        # Validation checks
         if not service or not date_val or not time_val or time_val in ["- Select a Date First -", "- NO SLOTS AVAILABLE -"]:
             messagebox.showerror("Missing Info", "Service, Date, and a valid Time must be selected.")
+            # Re-enable button on error
+            self.submit_btn.config(state="normal", text="Confirm Booking", bg=ACCENT_COLOR)
             return
 
         booked = self.get_booked_times(date_val)
         if time_val in booked:
             messagebox.showerror("Booking Conflict", f"The slot {time_val} on {date_val} was just booked. Please select another time.")
             self.update_available_times()
+            # Re-enable button on error
+            self.submit_btn.config(state="normal", text="Confirm Booking", bg=ACCENT_COLOR)
             return
 
         user_id = self.fetch_user_id_by_username(self.username)
         if not user_id:
             messagebox.showerror("User ID Error", f"Could not fetch user ID for '{self.username}'. Booking failed.")
+            # Re-enable button on error
+            self.submit_btn.config(state="normal", text="Confirm Booking", bg=ACCENT_COLOR)
             return
 
         try:
@@ -324,12 +334,14 @@ class BookNowPage(tk.Toplevel):
 
             messagebox.showinfo("Booking Confirmed", f"Thank you {name}, your {service} is booked for {date_val} at {time_val}. Your appointment status is currently PENDING.")
             
+            # Clear the form after successful booking
             self.service_combo.set("")
             self.date_entry.config(state=tk.NORMAL, bg=self.entry_bg)
             self.date_entry.delete(0, tk.END)
             self.date_entry.config(state="readonly", bg=self.disabled_bg)
             self.time_combo.set("- Select a Date First -")
             self.time_combo['values'] = ["- Select a Date First -"]
+            self.time_combo.config(state="disabled")
             self.remarks_text.delete('1.0', tk.END)
             
         except mysql.connector.Error as err:
@@ -338,3 +350,6 @@ class BookNowPage(tk.Toplevel):
             if 'conn' in locals() and conn.is_connected():
                 cursor.close()
                 conn.close()
+            
+            # Re-enable button after process completes
+            self.submit_btn.config(state="normal", text="Confirm Booking", bg=ACCENT_COLOR)

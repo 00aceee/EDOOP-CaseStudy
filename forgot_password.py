@@ -32,6 +32,7 @@ class ForgotPasswordWindow(tk.Toplevel):
         self.parent = parent
         self.title("Forgot Password")
         self.configure(bg=BG_COLOR)
+        self.resizable(False, False)
 
         self.stored_otp = None
         self.otp_sent_time = None
@@ -57,45 +58,86 @@ class ForgotPasswordWindow(tk.Toplevel):
 
         # Email input + send OTP button
         email_frame = tk.Frame(card_frame, bg=CARD_COLOR)
-        email_frame.pack(pady=8, fill="x", padx=30)
-        tk.Label(email_frame, text="Registered Email", fg=ACCENT_COLOR, bg=CARD_COLOR, font=("Arial", 11, "bold")).pack(anchor="w")
+        email_frame.pack(pady=8, fill="x", padx=40)
+        tk.Label(email_frame, text="Registered Email", fg=ACCENT_COLOR, bg=CARD_COLOR,
+                 font=("Arial", 11, "bold")).pack(anchor="w")
 
         input_email_frame = tk.Frame(email_frame, bg=CARD_COLOR)
         input_email_frame.pack(fill="x", pady=4)
-        self.entry_email = tk.Entry(input_email_frame, font=("Arial", 12), fg=FG_COLOR, bg="#333",
-                                    insertbackground="white", relief="flat", width=40)
-        self.entry_email.pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 5))
 
-        self.send_otp_btn = tk.Button(input_email_frame, text="SEND OTP", font=("Arial", 10),
-                                      fg="white", bg=ACCENT_COLOR, relief="flat",
-                                      command=self.send_otp)
-        self.send_otp_btn.pack(side="right", padx=(5, 0))
+        self.entry_email = tk.Entry(
+            input_email_frame,
+            font=("Arial", 12),
+            fg=FG_COLOR,
+            bg="#333",
+            insertbackground="white",
+            relief="flat",
+            width=35
+        )
+        self.entry_email.pack(side="left", fill="x", expand=True, ipady=6)
+
+        self.send_otp_btn = tk.Button(
+            input_email_frame,
+            text="SEND OTP",
+            font=("Arial", 10, "bold"),
+            fg="white",
+            bg=BG_COLOR_DARK,
+            relief="flat",
+            padx=10,
+            command=self.send_otp
+        )
+        self.send_otp_btn.pack(side="right", padx=(8, 0), ipady=4)
+        self.bind('<Return>', lambda event: self.send_otp())
 
         # OTP input
         otp_frame = tk.Frame(card_frame, bg=CARD_COLOR)
-        otp_frame.pack(pady=8, fill="x", padx=30)
-        tk.Label(otp_frame, text="OTP Code (6 digits)", fg=ACCENT_COLOR, bg=CARD_COLOR, font=("Arial", 11, "bold")).pack(anchor="w")
-        self.entry_otp = tk.Entry(otp_frame, font=("Arial", 12), fg=FG_COLOR, bg="#333",
-                          insertbackground="white", relief="flat", width=20)
+        otp_frame.pack(pady=8, fill="x", padx=40)
+        tk.Label(otp_frame, text="OTP Code (6 digits)", fg=ACCENT_COLOR, bg=CARD_COLOR,
+                 font=("Arial", 11, "bold")).pack(anchor="w")
+        self.entry_otp = tk.Entry(
+            otp_frame,
+            font=("Arial", 12),
+            fg=FG_COLOR,
+            bg="#333",
+            insertbackground="white",
+            relief="flat",
+            width=35
+        )
         self.entry_otp.pack(fill="x", ipady=6, pady=4)
 
-        self.status_label = tk.Label(otp_frame, text="", font=("Arial", 10), fg="green", bg=CARD_COLOR)
+        self.status_label = tk.Label(
+            otp_frame,
+            text="",
+            font=("Arial", 10),
+            fg="green",
+            bg=CARD_COLOR
+        )
         self.status_label.pack(anchor="w", pady=2)
 
-        # New password and confirmation
+        # New password and confirmation fields
         self.entry_new_pass = add_input("New Password", show="*")
         self.entry_confirm_pass = add_input("Confirm New Password", show="*")
 
         btn_frame = tk.Frame(card_frame, bg=CARD_COLOR)
         btn_frame.pack(pady=20)
 
-        tk.Button(btn_frame, text="Reset Password", font=("Arial", 12),
-                  fg="white", bg=ACCENT_COLOR, relief="flat", width=15,
-                  command=self.reset_password).grid(row=0, column=0, padx=10)
+        self.reset_btn = tk.Button(
+            btn_frame,
+            text="Reset Password",
+            font=("Arial", 12),
+            fg="white",
+            bg=BG_COLOR_DARK,
+            relief="flat",
+            width=15,
+            command=self.reset_password
+        )
+        self.reset_btn.grid(row=0, column=0, padx=10)
+        self.bind('<Return>', lambda event: self.reset_password())
 
-        tk.Button(btn_frame, text="Cancel", font=("Arial", 12),
-                  fg="white", bg="red", relief="flat", width=15,
+        self.cancel_btn = tk.Button(btn_frame, text="Cancel", font=("Arial", 12),
+                  fg=FG_COLOR_LIGHT, bg=BG_COLOR_LIGHT, relief="flat", width=15,
                   command=self.cancel).grid(row=0, column=1, padx=10)
+        self.bind('<Return>', lambda event: self.cancel())
 
         self.protocol("WM_DELETE_WINDOW", self.cancel)
         self.update_idletasks()
@@ -119,12 +161,18 @@ class ForgotPasswordWindow(tk.Toplevel):
         return str(random.randint(100000, 999999))
 
     def send_otp(self):
+        
+        self.send_otp_btn.config(state="disabled", text="Sending OTP", bg="#888")
+        self.update_idletasks()
+
         email = self.entry_email.get().strip()
         if not email:
             messagebox.showerror("Error", "Please enter your registered email.")
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             return
         if not self.is_valid_email(email):
             messagebox.showerror("Error", "Please enter a valid Gmail address.")
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             return
 
         # Check if user exists with this email in DB
@@ -136,6 +184,7 @@ class ForgotPasswordWindow(tk.Toplevel):
                 messagebox.showerror("Error", "No account found with this email.")
                 cursor.close()
                 conn.close()
+                self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
                 return
             cursor.close()
             conn.close()
@@ -188,14 +237,14 @@ class ForgotPasswordWindow(tk.Toplevel):
             server.send_message(msg)
             server.quit()
 
-            self.send_otp_btn.config(text="OTP Sent!", state="disabled", bg="gray")
+            self.send_otp_btn.config(text="OTP Sent!", state="disabled", bg="#888")
             self.status_label.config(text=f"OTP sent to {email}. Check your inbox (and spam).", fg="green")
             messagebox.showinfo("Success", "OTP sent! Enter it in the field below.")
 
         except Exception as e:
             self.stored_otp = None  
             self.otp_sent_time = None
-            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=ACCENT_COLOR)
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             self.status_label.config(text="Failed to send OTP. Try again.", fg="red")
             messagebox.showerror("SMTP Error", f"Failed to send OTP: {str(e)}")
 
@@ -221,6 +270,10 @@ class ForgotPasswordWindow(tk.Toplevel):
         return hashlib.sha256(password.encode()).hexdigest()
 
     def reset_password(self):
+
+        self.reset_btn.config(state="disabled", text="Processing...", bg="#888")
+        self.update_idletasks()
+
         email = self.entry_email.get().strip()
         otp = self.entry_otp.get().strip()
         new_pass = self.entry_new_pass.get().strip()
@@ -228,23 +281,28 @@ class ForgotPasswordWindow(tk.Toplevel):
 
         if not all([email, otp, new_pass, confirm_pass]):
             messagebox.showerror("Error", "All fields are required!")
+            self.reset_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         if not self.is_valid_email(email):
             messagebox.showerror("Error", "Invalid email format!")
+            self.reset_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         if len(new_pass) < 6:
             messagebox.showerror("Error", "Password must be at least 6 characters!")
+            self.reset_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         if new_pass != confirm_pass:
             messagebox.showerror("Error", "Passwords do not match!")
+            self.reset_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         is_valid, msg = self.validate_otp(otp)
         if not is_valid:
             messagebox.showerror("Error", msg)
+            self.reset_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         try:
@@ -267,6 +325,7 @@ class ForgotPasswordWindow(tk.Toplevel):
         except mysql.connector.Error as err:
             if conn:
                 conn.rollback()
+            self.reset_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             messagebox.showerror("Database Error", f"Error: {err}")
 
     def cancel(self):

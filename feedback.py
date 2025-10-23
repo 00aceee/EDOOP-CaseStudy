@@ -7,13 +7,17 @@ from datetime import datetime
 class Feedback(tk.Toplevel):
     def __init__(self, parent, username, is_admin=False, mode="dark"):
         super().__init__(parent)
+        self.parent = parent
         self.username = username
         self.is_admin = is_admin
         self.mode = mode
         self.title("Feedback Form")
         self.geometry("700x600")
-        self.configure(bg="#222")
-
+        self.after(0, self.center_window)
+        self.main_bg = "#222" 
+        self.configure(bg=self.main_bg)
+        self.resizable(False, False)
+        
         # 🧾 Create scrollable canvas for ENTIRE form
         self.canvas = tk.Canvas(self, bg="#222", highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
@@ -37,6 +41,17 @@ class Feedback(tk.Toplevel):
         # 🌟 Title
         tk.Label(self.scrollable_frame, text="Rate Our Service", fg="white", bg="#222",
                  font=("Arial", 18, "bold")).pack(pady=10)
+        
+        home_btn = tk.Button(self, text="🏠", font=("Arial", 24),
+                             bg=self.main_bg, 
+                             fg="white", 
+                             relief="flat", padx=10, pady=0,
+                             borderwidth=0, 
+                             highlightthickness=0,
+                             command=self.go_back, 
+                             activebackground=self.main_bg, 
+                             activeforeground="#007ACC")
+        home_btn.place(x=10, y=0)
 
         # ⭐ Interactive Stars
         self.rating = 0
@@ -181,3 +196,19 @@ class Feedback(tk.Toplevel):
                     font=("Arial", 10, "bold"), anchor="w").pack(fill="x")
             tk.Label(reply_frame, text=reply, fg="white", bg="#222",
                     font=("Arial", 10), wraplength=420, justify="left", anchor="w").pack(fill="x")
+    
+    def center_window(self):
+        width = 700
+        height = 600
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.geometry(f'{width}x{height}+{x}+{y}')
+        
+    def go_back(self):
+        from main_window import MainWindow
+        self.withdraw()
+        main_win = MainWindow(self.parent, username=self.username, is_admin=self.is_admin)
+        main_win.grab_set()

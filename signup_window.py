@@ -38,6 +38,8 @@ class SignUpWindow(tk.Toplevel):
         self.otp_sent_time = None
         self.send_otp_btn = None
 
+        self.resizable(False, False)
+
         # Main frame for all content
         main_frame = tk.Frame(self, bg=BG_COLOR)
         main_frame.pack(padx=40, pady=30)
@@ -74,9 +76,10 @@ class SignUpWindow(tk.Toplevel):
         self.entry_email.pack(side="left", fill="x", expand=True, ipady=6)
 
         self.send_otp_btn = tk.Button(input_email_frame, text="SEND OTP", font=("Arial", 10),
-                                      fg="white", bg=ACCENT_COLOR, relief="flat",
+                                      fg="white", bg=BG_COLOR_DARK, relief="flat",
                                       command=self.send_otp, width=10)
         self.send_otp_btn.pack(side="right", padx=(5, 0), ipady=4)
+        self.bind('<Return>', lambda event: self.send_otp())
 
         self.entry_pass = add_input("Password", show="*")
         self.entry_confirm = add_input("Confirm Password", show="*")
@@ -94,13 +97,35 @@ class SignUpWindow(tk.Toplevel):
         btn_frame = tk.Frame(card_frame, bg=CARD_COLOR)
         btn_frame.pack(pady=20)
 
-        tk.Button(btn_frame, text="Sign Up", font=("Arial", 12),
-                  fg="white", bg=ACCENT_COLOR, relief="flat", width=12,
-                  command=self.signup).grid(row=0, column=0, padx=10)
+        self.signup_btn = tk.Button(
+            btn_frame, 
+            text="Sign Up", 
+            font=("Arial", 12),
+            fg="white", 
+            bg=BG_COLOR_DARK, 
+            relief="flat", 
+            padx=10, pady=0,
+            width=12,
+            command=self.signup, 
+            activebackground="#888", 
+            activeforeground=ACCENT_COLOR
+        )
+        self.signup_btn.pack(side="left", pady=30, padx=10)
+        self.bind('<Return>', lambda event: self.signup())
 
-        tk.Button(btn_frame, text="Clear", font=("Arial", 12),
-                  fg="white", bg="red", relief="flat", width=12,
-                  command=self.clear_fields).grid(row=0, column=1, padx=10)
+        self.clear_btn = tk.Button(
+            btn_frame,
+            text="Clear",
+            font=("Arial", 12),
+            fg=FG_COLOR_LIGHT,
+            bg=BG_COLOR_LIGHT,
+            relief="flat", 
+            padx=10, pady=0,
+            width=12,
+            command=self.clear_fields
+        )
+        self.clear_btn.pack(side="left", pady=30, padx=10)
+        self.bind('<Return>', lambda event: self.clear_fields())
 
         back_btn = tk.Label(main_frame, text="Back to Login", fg=ACCENT_COLOR,
                             bg=BG_COLOR, font=("Arial", 11, "underline"), cursor="hand2")
@@ -122,12 +147,18 @@ class SignUpWindow(tk.Toplevel):
         return re.match(pattern, email) is not None
 
     def send_otp(self):
+
+        self.send_otp_btn.config(state="disabled", text="Sending OTP", bg="#888")
+        self.update_idletasks() 
+
         email = self.entry_email.get().strip()
         if not email:
             messagebox.showerror("Error", "Please enter your email first.")
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             return
         if not self.is_valid_email(email):
             messagebox.showerror("Error", "Please enter a valid Gmail address.")
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             return
 
         otp = self.generate_otp()
@@ -175,14 +206,14 @@ class SignUpWindow(tk.Toplevel):
             server.send_message(msg)
             server.quit()
 
-            self.send_otp_btn.config(text="OTP Sent!", state="disabled", bg="gray")
+            self.send_otp_btn.config(text="OTP Sent!", state="disabled", bg="#888")
             self.status_label.config(text=f"OTP sent to {email}. Check your inbox (and spam).", fg="green")
             messagebox.showinfo("Success", "OTP sent! Enter it in the OTP field below.")
 
         except Exception as e:
             self.stored_otp = None  
             self.otp_sent_time = None
-            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=ACCENT_COLOR)
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             self.status_label.config(text="Failed to send OTP. Try again.", fg="red")
             messagebox.showerror("SMTP Error", f"Failed to send OTP: {str(e)}\nCheck your internet and SMTP settings.")
 
@@ -197,7 +228,7 @@ class SignUpWindow(tk.Toplevel):
         if datetime.now() > self.otp_sent_time + timedelta(minutes=OTP_EXPIRY_MINUTES):
             self.stored_otp = None
             self.otp_sent_time = None
-            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=ACCENT_COLOR)
+            self.send_otp_btn.config(state="normal", text="SEND OTP", bg=BG_COLOR_DARK)
             return False, "OTP expired. Request a new one."
         
         if user_otp != self.stored_otp:
@@ -218,6 +249,10 @@ class SignUpWindow(tk.Toplevel):
         return exists
 
     def signup(self):
+
+        self.signup_btn.config(state="disabled", text="Processing...", bg="#888")
+        self.update_idletasks()
+
         fullname = self.entry_fullname.get().strip()
         username = self.entry_user.get().strip()
         email = self.entry_email.get().strip()
@@ -227,20 +262,25 @@ class SignUpWindow(tk.Toplevel):
 
         if not all([fullname, username, email, password, confirm_pass, otp]):
             messagebox.showerror("Error", "All fields are required!")
+            self.signup_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
         if password != confirm_pass:
             messagebox.showerror("Error", "Passwords do not match!")
+            self.signup_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
         if not self.is_valid_email(email):
             messagebox.showerror("Error", "Invalid email format!")
+            self.signup_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
         if len(password) < 6:
             messagebox.showerror("Error", "Password must be at least 6 characters!")
+            self.signup_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         is_valid, msg = self.validate_otp(otp)
         if not is_valid:
             messagebox.showerror("Error", msg)
+            self.submit_btn.config(state="normal", text="Sign Up", bg=BG_COLOR_DARK)
             return
 
         conn = None
@@ -279,6 +319,7 @@ class SignUpWindow(tk.Toplevel):
             if conn:
                 cursor.close()
                 conn.close()
+                self.signup_btn.config(state="normal", text="Sign Up", bg=ACCENT_COLOR)
 
     def clear_fields(self):
         self.entry_fullname.delete(0, tk.END)

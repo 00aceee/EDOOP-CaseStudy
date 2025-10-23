@@ -26,9 +26,10 @@ class AdminWindow(tk.Toplevel):
         self.username = username
         self.is_admin = is_admin
         self.title("Admin Panel - Logged in as: " + username)
-        self.geometry("950x650")
+        self.geometry("1000x650")
         self.configure(bg="#212121")
         self.after(0, self.center_window)
+        self.resizable(False, False)
 
         self.db_config = {
             "host": DB_HOST,
@@ -108,11 +109,11 @@ class AdminWindow(tk.Toplevel):
         tk.Button(btn_frame, text="➕ Add New User", command=lambda: self.add_user(tree),
                       bg="#28A745", fg="white", relief="flat", activebackground="#1e7e34").pack(side="left", padx=5, ipadx=5, ipady=3)
         
-        tk.Button(btn_frame, text="🔄 Change Role", command=lambda: self.change_user_role(tree),
-                      bg="#FF9800", fg="white", relief="flat", activebackground="#cc7a00").pack(side="left", padx=5, ipadx=5, ipady=3)
+        # tk.Button(btn_frame, text="🔄 Change Role", command=lambda: self.change_user_role(tree),
+        #              bg="#FF9800", fg="white", relief="flat", activebackground="#cc7a00").pack(side="left", padx=5, ipadx=5, ipady=3)
                       
-        tk.Button(btn_frame, text="🗑️ Delete Selected User", command=lambda: self.delete_user(tree),
-                      bg="#F44336", fg="white", relief="flat", activebackground="#dc3545").pack(side="left", padx=5, ipadx=5, ipady=3)
+        # tk.Button(btn_frame, text="🗑️ Delete Selected User", command=lambda: self.delete_user(tree),
+        #              bg="#F44336", fg="white", relief="flat", activebackground="#dc3545").pack(side="left", padx=5, ipadx=5, ipady=3)
         
         columns = ("ID", "Full name", "Username", "Email", "Role")
         tree = ttk.Treeview(self.content_frame, columns=columns, show="headings")
@@ -537,6 +538,9 @@ class AdminWindow(tk.Toplevel):
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         def load_feedback():
+            """Loads feedback from the database with optional filters."""
+            self.apply_btn.config(state="disabled", text="Processing...", bg="#888")
+            self.update_idletasks() 
             # Clear existing feedback cards
             for widget in scrollable_frame.winfo_children():
                 widget.destroy()
@@ -546,36 +550,50 @@ class AdminWindow(tk.Toplevel):
                 return
 
             cursor = conn.cursor()
-            
-            # Build query based on filters
+
+            # ✅ FIX: Escape % in DATE_FORMAT to avoid MySQL placeholder errors
             query = """
-                SELECT f.id, f.username, f.stars, f.message, COALESCE(f.reply, ''), 
-                    DATE_FORMAT(f.date_submitted, '%Y-%m-%d %H:%i:%s'),
-                    f.resolved, u.email
+                SELECT
+                    f.id,
+                    f.username,
+                    f.stars,
+                    f.message,
+                    COALESCE(f.reply, ''),
+                    DATE_FORMAT(f.date_submitted, '%Y-%m-%d %H:%i:%s') AS formatted_date,
+                    f.resolved,
+                    u.email
                 FROM tbl_feedback f
                 LEFT JOIN tbl_users u ON f.username = u.username
             """
-            
+
             conditions = []
             params = []
-            
-            # Star filter
+
+            # ⭐ Star filter
             star_val = star_filter.get()
             if star_val != "All":
-                star_num = int(star_val.split()[0])
-                conditions.append("f.stars = %s")
-                params.append(star_num)
-            
-            # Search filter
+                self.apply_btn.config(state="normal", text="🔍 Apply Filters", bg="#007ACC")
+                try:
+                    # Example: "5 Stars" → 5
+                    star_num = int(star_val.split()[0])
+                    conditions.append("f.stars = %s")
+                    params.append(star_num)
+                except ValueError:
+                    messagebox.showerror("Error", "Invalid star filter value.")
+                    self.apply_btn.config(state="normal", text="🔍 Apply Filters", bg="#007ACC")
+                    return
+
+            # 🔍 Search filter
             search_text = search_var.get().strip()
             if search_text:
                 conditions.append("(f.username LIKE %s OR f.message LIKE %s)")
                 params.extend([f"%{search_text}%", f"%{search_text}%"])
-            
+
+            # Combine conditions
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
-            
-            # Sort order
+
+            # 📅 Sort order
             sort_val = sort_option.get()
             if sort_val == "Newest First":
                 query += " ORDER BY f.date_submitted DESC"
@@ -585,23 +603,36 @@ class AdminWindow(tk.Toplevel):
                 query += " ORDER BY f.stars DESC, f.date_submitted DESC"
             elif sort_val == "Lowest Rating":
                 query += " ORDER BY f.stars ASC, f.date_submitted DESC"
-            
+
             try:
+                print("\n--- SQL DEBUG ---")
+                print("QUERY:", query)
+                print("PARAMS:", params)
+                print("-----------------\n")
                 cursor.execute(query, params)
                 feedbacks = cursor.fetchall()
-                
+
                 if not feedbacks:
-                    tk.Label(scrollable_frame, text="No feedback found matching your filters.", 
-                            bg="#212121", fg="#aaa", font=("Arial", 12)).pack(pady=50)
+                    self.apply_btn.config(state="normal", text="🔍 Apply Filters", bg="#007ACC")
+                    tk.Label(
+                        scrollable_frame,
+                        text="No feedback found matching your filters.",
+                        bg="#212121",
+                        fg="#aaa",
+                        font=("Arial", 12)
+                    ).pack(pady=50)
                 else:
                     for feedback in feedbacks:
                         create_feedback_card(feedback)
-                        
+
             except Exception as e:
+                self.apply_btn.config(state="disabled", text="Processing...", bg="#888")
                 messagebox.showerror("Error", f"Failed to load feedback: {e}")
+
             finally:
                 cursor.close()
                 conn.close()
+                self.apply_btn.config(state="normal", text="🔍 Apply Filters", bg="#007ACC")
 
         def create_feedback_card(feedback):
             feedback_id, username, stars, message, reply, date, resolved, email = feedback
@@ -675,11 +706,11 @@ class AdminWindow(tk.Toplevel):
             resolve_btn.pack(side="left", padx=5)
             
             # Delete button
-            delete_btn = tk.Button(btn_frame, text="🗑️ Delete",
-                                command=lambda: delete_feedback(feedback_id),
-                                bg="#F44336", fg="white", relief="flat",
-                                activebackground="#dc3545", font=("Arial", 9))
-            delete_btn.pack(side="left", padx=5)
+            # delete_btn = tk.Button(btn_frame, text="🗑️ Delete",
+            #                     command=lambda: delete_feedback(feedback_id),
+            #                     bg="#F44336", fg="white", relief="flat",
+            #                     activebackground="#dc3545", font=("Arial", 9))
+            # delete_btn.pack(side="left", padx=5)
 
         def reply_to_feedback(feedback_id, username, user_message, stars, existing_reply, email):
             top = tk.Toplevel(self)
@@ -777,49 +808,49 @@ class AdminWindow(tk.Toplevel):
                 cursor.execute("UPDATE tbl_feedback SET resolved=%s WHERE id=%s", 
                             (new_status, feedback_id))
                 conn.commit()
-                load_feedback()  # Refresh the display
+                load_feedback()  
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to update status: {e}")
             finally:
                 cursor.close()
                 conn.close()
 
-        def delete_feedback(feedback_id):
-            if not messagebox.askyesno("Confirm Delete", 
-                                    "Are you sure you want to delete this feedback?"):
-                return
+        # def delete_feedback(feedback_id):
+        #     if not messagebox.askyesno("Confirm Delete", 
+        #                             "Are you sure you want to delete this feedback?"):
+        #         return
             
-            conn = self.get_db_connection()
-            if not conn:
-                return
+        #     conn = self.get_db_connection()
+        #     if not conn:
+        #         return
                 
-            cursor = conn.cursor()
-            try:
-                cursor.execute("DELETE FROM tbl_feedback WHERE id=%s", (feedback_id,))
-                conn.commit()
-                messagebox.showinfo("Success", "Feedback deleted successfully!")
-                load_feedback()  # Refresh the display
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to delete feedback: {e}")
-            finally:
-                cursor.close()
-                conn.close()
+        #     cursor = conn.cursor()
+        #     try:
+        #         cursor.execute("DELETE FROM tbl_feedback WHERE id=%s", (feedback_id,))
+        #         conn.commit()
+        #         messagebox.showinfo("Success", "Feedback deleted successfully!")
+        #         load_feedback()  
+        #     except Exception as e:
+        #         messagebox.showerror("Error", f"Failed to delete feedback: {e}")
+        #     finally:
+        #         cursor.close()
+        #         conn.close()
 
         # Apply filters button
-        apply_btn = tk.Button(control_frame, text="🔍 Apply Filters", 
+        self.apply_btn = tk.Button(control_frame, text="🔍 Apply Filters", 
                             command=load_feedback, bg="#007ACC", fg="white", 
                             relief="flat", font=("Arial", 9))
-        apply_btn.pack(side="left", padx=20)
+        self.apply_btn.pack(side="left", padx=10)
 
         # Refresh button
-        refresh_btn = tk.Button(control_frame, text="🔄 Refresh", 
+        refresh_btn = tk.Button(control_frame, text="🔄", 
                             command=lambda: [star_filter.set("All"), 
                                             sort_option.set("Newest First"),
                                             search_var.set(""),
                                             load_feedback()],
                             bg="#28A745", fg="white", relief="flat", 
                             font=("Arial", 9))
-        refresh_btn.pack(side="left", padx=5)
+        refresh_btn.pack(side="left", padx=0)
 
         # Initial load
         load_feedback()

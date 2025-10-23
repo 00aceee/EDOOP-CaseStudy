@@ -22,7 +22,7 @@ class MainWindow(tk.Toplevel):
         self.geometry("1000x700") 
         self.after(0, self.center_window)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
-        
+        self.resizable(False, False)
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
