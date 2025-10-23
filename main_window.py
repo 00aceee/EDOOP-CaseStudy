@@ -19,7 +19,7 @@ class MainWindow(tk.Toplevel):
         self.is_admin = is_admin
         
         self.title("Barber and Tattoo Shop")
-        self.geometry("1000x700") 
+        self.geometry("1000x650") 
         self.after(0, self.center_window)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.resizable(False, False)
@@ -327,7 +327,7 @@ class MainWindow(tk.Toplevel):
     
     def open_haircut_styles(self):
         self.withdraw()
-        sub_win = HaircutStyles(self, self.username, is_admin=self.is_admin, mode=self.current_mode)
+        sub_win = HaircutStyles(self, self.username, is_admin=self.is_admin)
         self.open_sub_windows.append(sub_win)
 
     def open_feedback(self):
