@@ -14,7 +14,7 @@ import re
 
 load_dotenv()
 YOUR_GMAIL = os.getenv("GMAIL_ADDRESS")
-YOUR_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+YOUR_APP_PASSWORD = os.getenv("GMAIL_APP")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
@@ -284,8 +284,8 @@ class AdminWindow(tk.Toplevel):
                       bg="#28A745", fg="white", relief="flat", activebackground="#1e7e34").pack(side="left", padx=5, ipadx=5, ipady=3)
         tk.Button(btn_frame, text="✅ Approve Selected", command=lambda: self.change_approval(tree, "Approved"),
                       bg="#007ACC", fg="white", relief="flat", activebackground="#005bb5").pack(side="left", padx=5, ipadx=5, ipady=3)
-        # Removed: tk.Button(btn_frame, text="❌ Deny Selected", command=lambda: self.change_approval(tree, "Denied"),
-        # Removed:              bg="#F44336", fg="white", relief="flat", activebackground="#dc3545").pack(side="left", padx=5, ipadx=5, ipady=3)
+        tk.Button(btn_frame, text="❌ Deny Selected", command=lambda: self.change_approval(tree, "Denied"),
+                      bg="#F44336", fg="white", relief="flat", activebackground="#dc3545").pack(side="left", padx=5, ipadx=5, ipady=3)
 
 
         columns = ("id", "fullname", "service", "appointment_date", "time", "remarks", "status")

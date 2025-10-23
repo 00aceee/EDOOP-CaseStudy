@@ -15,7 +15,7 @@ import os
 
 load_dotenv()  
 YOUR_GMAIL = os.getenv("GMAIL_ADDRESS")
-YOUR_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+YOUR_APP_PASSWORD = os.getenv("GMAIL_APP")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 OTP_EXPIRY_MINUTES = 5 

@@ -9,7 +9,7 @@ import os
 
 load_dotenv()
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP")
 
 class UserProfileMenu(tk.Frame):
     def __init__(self, parent, username, mode, toggle_theme_callback, logout_callback):
